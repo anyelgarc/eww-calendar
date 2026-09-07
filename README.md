@@ -4,7 +4,7 @@ Calendario desplegable con notas por día, para [eww](https://github.com/elkowar
 Se abre bajo el reloj de la barra, navega por meses, y cada día admite hasta
 cinco notas cortas con hora y un color propio.
 
-<!-- Aquí queda bien una captura: docs/captura.png -->
+![Calendario](/previews/image.png)
 
 - **Notas por día**, hasta cinco, una debajo de otra.
 - **Hora opcional** por nota, con dos barras de 0-23 y 0-59.
