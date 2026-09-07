@@ -1,0 +1,278 @@
+;; ~/.config/eww/widgets/calendar/calendar.yuck
+;; Calendario desplegable bajo el reloj de la barra.
+;; Estilos en calendar.scss · lógica en scripts/calendar.sh, scripts/notes.sh
+;; y scripts/date-full.sh
+
+;; ── Variables ────────────────────────────────────────────────
+
+;; Ruta de este widget. Es lo único que hay que tocar si lo colocas en otro
+;; sitio (eso y el exec-once del compositor; ver el README).
+(defvar cal_dir "~/.config/eww/widgets/calendar")
+
+(defvar cal '{"offset":0,"title":"","weeks":[]}')
+
+;; Controla la animación de entrada/salida del calendario (ver calendar.sh).
+(defvar cal_show false)
+
+;; Día seleccionado y qué muestra el panel de notas (ver notes.sh):
+;;   mode = none (plegado) | view (lista) | edit (escribir) | del (borrar)
+;;   idx  = nota que se está editando; -1 es una nota nueva
+;;   full = el día ya tiene el máximo de notas (5)
+(defvar cal_sel '{"mode":"none","date":"","label":"","color":"","idx":-1,"full":false,"notes":[]}')
+
+;; Texto con el que se carga el campo al abrirlo. Va aparte de `note_draft`
+;; a propósito: si el campo se alimentara de lo que se teclea, eww le
+;; reescribiría el contenido en cada tecla y el cursor daría saltos.
+(defvar note_seed "")
+
+;; Espejo de lo que se está tecleando: el botón «Aceptar» guarda esto.
+(defvar note_draft "")
+
+;; Color por defecto de todas las notas (prefs.json). Lo publican los scripts.
+(defvar note_color "#e8b04b")
+
+;; Color propio del día que se está editando. Vacío = sigue al de por defecto.
+;; Como el texto, no se guarda hasta darle a «Aceptar».
+(defvar color_draft "")
+
+;; Hora de la nota que se está escribiendo. `time_on` en false = sin hora.
+(defvar hour_draft 9)
+(defvar min_draft 0)
+(defvar time_on false)
+
+;; Reloj de la cabecera. Va aparte de cualquier reloj que ya tengas en la
+;; barra para que el widget funcione por su cuenta; calendar.sh lo refresca
+;; al abrir, así que el intervalo sólo importa con el calendario ya abierto.
+(defpoll cal_hour
+  :interval "5s"
+  :initial "00:00"
+  `date '+%H:%M'`)
+
+(defpoll date_full
+  :interval "60s"
+  :initial ""
+  ;; Ruta literal: un defpoll se evalúa fuera de todo ámbito y no puede
+  ;; referirse a `cal_dir` como sí hacen los widgets de abajo.
+  `~/.config/eww/widgets/calendar/scripts/date-full.sh`)
+
+;; ── Módulos ──────────────────────────────────────────────────
+
+(defwidget cal-nav [step label]
+  (eventbox :cursor "pointer"
+    (button :class "cal-nav"
+            :onclick "${cal_dir}/scripts/calendar.sh shift ${step}"
+            label)))
+
+;; Botón compacto del panel de notas.
+;;
+;; El :timeout largo no es capricho. Por defecto eww mata el comando a los
+;; 200ms y deja escrito en ~/.cache/eww/*.log el comando entero — que aquí
+;; lleva dentro el texto de la nota. Guardar tarda ~140ms, demasiado cerca
+;; del margen, y el selector de color tarda lo que tardes en elegir.
+(defwidget note-btn [cls onclick label ?tooltip]
+  (eventbox :cursor "pointer" :tooltip {tooltip ?: ""}
+    (button :class "note-btn ${cls}" :timeout "60s" :onclick onclick label)))
+
+;; Cuadradito de color: enseña el color actual y al pulsarlo abre el selector.
+(defwidget swatch [color tooltip onclick]
+  (eventbox :cursor "pointer" :tooltip tooltip
+    (button :class "swatch"
+            :style {"background-color: " + color + ";"}
+            :timeout "300s"
+            :onclick onclick)))
+
+;; Panel que aparece bajo el calendario al pulsar un día.
+;;
+;; El texto de la nota nunca se pasa como argumento: se manda por la entrada
+;; estándar con un heredoc de delimitador entrecomillado, así la shell no
+;; interpreta comillas, $ ni acentos de lo escrito. Por eso el cuerpo y el
+;; cierre del heredoc van pegados al margen izquierdo.
+(defwidget cal-note []
+  (revealer :transition "slidedown"
+            :duration "200ms"
+            :reveal {cal_sel.mode != "none"}
+    (box :class "card cal-note" :orientation "v" :space-evenly false :spacing 8
+
+      ;; Cabecera: fecha del día seleccionado y cierre del panel.
+      (box :orientation "h" :space-evenly false :spacing 6
+        (label :class "note-date" :hexpand true :halign "start" :text {cal_sel.label})
+        (note-btn :cls "" :label "✕"
+                  :onclick "${cal_dir}/scripts/notes.sh close"))
+
+      ;; Cada modo va en su propio revealer: el atributo :visible de eww no se
+      ;; aplica la primera vez que se abre la ventana, porque se evalúa antes
+      ;; de que GTK mapee el widget. Van agrupados en una caja sin separación,
+      ;; y con transición «slidedown» (la de «crossfade» no encoge al hijo:
+      ;; sólo lo desvanece, dejando el hueco ocupado).
+      (box :orientation "v" :space-evenly false :spacing 0
+
+      ;; ── Escribir / editar una nota ──────────────────────────
+      (revealer :transition "slidedown" :duration "150ms"
+                :reveal {cal_sel.mode == "edit"}
+       (box :orientation "v" :space-evenly false :spacing 8
+
+       ;; Texto de la nota.
+       (box :orientation "h" :space-evenly false :spacing 6
+        (note-btn :cls "clear" :label "✕"
+                  :onclick "${cal_dir}/scripts/notes.sh clear")
+        (input :class "note-input"
+               :hexpand true
+               :timeout "60s"
+               :value note_seed
+               :onchange `${cal_dir}/scripts/notes.sh draft <<'EWW_NOTE_EOF'
+{}
+EWW_NOTE_EOF
+`
+               :onaccept `${cal_dir}/scripts/notes.sh save ${cal_sel.date} ${cal_sel.idx} "${color_draft}" ${round(hour_draft,0)} ${round(min_draft,0)} ${time_on} <<'EWW_NOTE_EOF'
+{}
+EWW_NOTE_EOF
+`)
+        (note-btn :cls "ok" :label "Aceptar"
+                  :onclick `${cal_dir}/scripts/notes.sh save ${cal_sel.date} ${cal_sel.idx} "${color_draft}" ${round(hour_draft,0)} ${round(min_draft,0)} ${time_on} <<'EWW_NOTE_EOF'
+${note_draft}
+EWW_NOTE_EOF
+`))
+
+       ;; Hora de la nota: dos barras, 0-23 y 0-59. Van debajo del campo y no
+       ;; a su lado porque en 380px de ancho, compartiendo fila con el texto,
+       ;; quedarían a un par de píxeles por minuto y no habría quien las
+       ;; ajustara. Mover cualquiera de las dos le pone hora a la nota; la ✕
+       ;; se la quita.
+       (box :orientation "h" :space-evenly false :spacing 6
+        (label :class "note-lbl" :text "Hora: ")
+        (revealer :transition "slideright" :duration "120ms" :reveal time_on
+          (label :class "note-clock"
+                 :text "${round(hour_draft,0) < 10 ? '0' : ''}${round(hour_draft,0)}:${round(min_draft,0) < 10 ? '0' : ''}${round(min_draft,0)}"))
+        (revealer :transition "slideright" :duration "120ms" :reveal {!time_on}
+          (label :class "note-clock off" :text "sin hora"))
+        (box :hexpand true)
+        (note-btn :cls "clear" :label "✕"
+                  :tooltip "Dejar la nota sin hora"
+                  :onclick "${cal_dir}/scripts/notes.sh time-clear"))
+
+       (box :orientation "h" :space-evenly false :spacing 6
+        (label :class "note-unit" :text "h")
+        ;; :max va uno por encima del tope real (24 y 60). El adjustment de
+        ;; GTK reserva un `page_size` de 1 al final del recorrido, así que el
+        ;; valor máximo alcanzable es max-1: con :max 23 la barra se quedaba
+        ;; en las 22 h.
+        (scale :class "note-scale" :hexpand true
+               :min 0 :max 24 :value hour_draft :round-digits 0
+               :onchange "${EWW_CMD} update time_on=true hour_draft={}"))
+       (box :orientation "h" :space-evenly false :spacing 6
+        (label :class "note-unit" :text "m")
+        (scale :class "note-scale" :hexpand true
+               :min 0 :max 60 :value min_draft :round-digits 0
+               :onchange "${EWW_CMD} update time_on=true min_draft={}"))
+
+       ;; Colores: el del día a la izquierda, el de todos a la derecha.
+       (box :class "note-colors" :orientation "h" :space-evenly false :spacing 6
+        (label :class "note-lbl" :text "Color")
+        (swatch :color {color_draft != "" ? color_draft : note_color}
+                :tooltip "Color de este día"
+                :onclick "${cal_dir}/scripts/notes.sh color")
+        (note-btn :cls "reset" :label "↺"
+                  :tooltip "Volver al color por defecto"
+                  :onclick "${cal_dir}/scripts/notes.sh color-reset")
+        (box :hexpand true)
+        (label :class "note-lbl" :text "Por defecto")
+        (swatch :color note_color
+                :tooltip "Color por defecto de todas las notas"
+                :onclick "${cal_dir}/scripts/notes.sh color-default"))))
+
+      ;; ── Notas del día ──────────────────────────────────────
+      (revealer :transition "slidedown" :duration "150ms"
+                :reveal {cal_sel.mode == "view"}
+       (box :orientation "v" :space-evenly false :spacing 6
+        ;; El `for` de eww va soltando sus hijos al final del contenedor, así
+        ;; que la lista vive en su propia caja: si no, lo que venga detrás
+        ;; acabaría dibujándose por encima de las notas.
+        (box :orientation "v" :space-evenly false :spacing 6
+         (for n in {cal_sel.notes}
+          (box :class "note-row" :orientation "h" :space-evenly false :spacing 6
+            (label :class "note-time" :text {n.time})
+            (label :class "note-text" :hexpand true :halign "start"
+                   :wrap true :text {n.text})
+            (note-btn :cls "" :label "✎"
+                      :tooltip "Editar esta nota"
+                      :onclick "${cal_dir}/scripts/notes.sh edit ${n.i}"))))
+        ;; Sitio para una más (el tope son 5).
+        (revealer :transition "slidedown" :duration "150ms"
+                  :reveal {!cal_sel.full}
+         (note-btn :cls "add" :label "+  Añadir nota"
+                   :onclick "${cal_dir}/scripts/notes.sh add"))))
+
+      ;; ── Click derecho: borrar ──────────────────────────────
+      (revealer :transition "slidedown" :duration "150ms"
+                :reveal {cal_sel.mode == "del"}
+       (box :orientation "v" :space-evenly false :spacing 6
+        (box :orientation "v" :space-evenly false :spacing 6
+         (for n in {cal_sel.notes}
+          (box :class "note-row" :orientation "h" :space-evenly false :spacing 6
+            (label :class "note-time dim" :text {n.time})
+            (label :class "note-text dim" :hexpand true :halign "start"
+                   :wrap true :text {n.text})
+            (note-btn :cls "danger" :label "Borrar"
+                      :onclick "${cal_dir}/scripts/notes.sh del ${cal_sel.date} ${n.i}"))))
+        (box :orientation "h" :space-evenly false :spacing 6 :halign "end"
+          (note-btn :cls "" :label "Cancelar"
+                    :onclick "${cal_dir}/scripts/notes.sh close"))))))))
+
+(defwidget cal-panel []
+  (box :class "cal" :orientation "v" :space-evenly false :spacing 10
+
+    ;; Tarjeta superior: hora grande y fecha larga de hoy.
+    (box :class "card cal-now" :orientation "v" :space-evenly false :spacing 2
+      (label :class "now-hour" :text cal_hour)
+      (label :class "now-date" :text date_full))
+
+    ;; Tarjeta central: rejilla del mes con su navegación.
+    (box :class "card cal-body" :orientation "v" :space-evenly false :spacing 10
+      (box :class "cal-head" :orientation "h" :space-evenly false :spacing 4
+        (cal-nav :step "-12" :label "<<")
+        (cal-nav :step "-1"  :label "<")
+        (label :class "cal-title" :hexpand true :text {cal.title})
+        (cal-nav :step "1"   :label ">")
+        (cal-nav :step "12"  :label ">>"))
+
+      (box :class "cal-weekdays" :orientation "h" :space-evenly true
+        (label :class "cal-wd" :text "L")
+        (label :class "cal-wd" :text "M")
+        (label :class "cal-wd" :text "X")
+        (label :class "cal-wd" :text "J")
+        (label :class "cal-wd" :text "V")
+        (label :class "cal-wd weekend" :text "S")
+        (label :class "cal-wd weekend" :text "D"))
+
+      (box :class "cal-grid" :orientation "v" :space-evenly false :spacing 2
+        (for week in {cal.weeks}
+          (box :orientation "h" :space-evenly true :spacing 2
+            (for day in week
+              ;; Izquierdo: ver o escribir la nota · derecho: borrarla.
+              (eventbox :cursor "pointer"
+                        :onclick "${cal_dir}/scripts/notes.sh open ${day.iso}"
+                        :onrightclick "${cal_dir}/scripts/notes.sh menu ${day.iso}"
+                (box :class {"cal-day " + day.cls + (day.iso == cal_sel.date && cal_sel.mode != "none" ? " sel" : "")}
+                     :style {day.style}
+                     :valign "center"
+                  (label :halign "center" :valign "center" :text {day.d}))))))))
+
+    ;; Tarjeta inferior: nota del día seleccionado (plegada si no hay ninguno).
+    (cal-note)))
+
+;; ── Ventana ──────────────────────────────────────────────────
+
+(defwindow calendar
+  :monitor 0
+  :geometry (geometry :x "0"
+                      :y "8px"
+                      :width "380px"
+                      :anchor "top center")
+  :stacking "fg"
+  ;; «ondemand»: no roba el foco al abrirse, pero el campo de la nota puede
+  ;; recibir el teclado en cuanto se pulsa sobre él.
+  :focusable "ondemand"
+  (revealer :transition "slidedown"
+            :duration "250ms"
+            :reveal cal_show
+    (cal-panel)))

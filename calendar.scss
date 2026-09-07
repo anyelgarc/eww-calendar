@@ -1,0 +1,280 @@
+// ~/.config/eww/widgets/calendar/calendar.scss
+// Calendario: contenedor gris con dos tarjetas de un tono más oscuro,
+// arriba la hora de hoy y abajo la rejilla del mes.
+// Se importa desde ../../eww.scss.
+
+// arriba la hora de hoy, abajo la rejilla del mes.
+
+$cal-shell:   #414b57;   // contenedor exterior
+$cal-card:    #333c48;   // tarjetas interiores (un tono más oscuro)
+$cal-inset:   #3d4856;   // bloques dentro de las tarjetas
+$cal-border:  #4d5867;
+$cal-fg:      #e6edf5;
+$cal-muted:   #9aa8ba;
+$cal-blue:    #9cc4e4;
+$cal-accent:  #e8b04b;   // bloque de un día con nota
+$cal-danger:  #e2807f;   // borrar nota
+$cal-sel:     #55637a;   // día seleccionado
+
+.cal {
+  background-color: $cal-shell;
+  border: 1px solid $cal-border;
+  border-radius: 12px;
+  padding: 10px;
+  color: $cal-fg;
+}
+
+.cal .card {
+  background-color: $cal-card;
+  border-radius: 8px;
+}
+
+// ── Tarjeta superior: hoy ───────────────────────────────────
+
+.cal-now {
+  padding: 14px 16px 16px 16px;
+}
+
+.now-hour {
+  font-size: 50px;
+  color: $cal-fg;
+}
+
+.now-date {
+  font-size: 20px;
+  color: $cal-muted;
+}
+
+// ── Tarjeta inferior: mes ───────────────────────────────────
+
+.cal-body {
+  padding: 12px 14px 14px 14px;
+}
+
+.cal-title {
+  font-size: 20px;
+  color: $cal-fg;
+}
+
+.cal-nav {
+  font-size: 16px;
+  color: $cal-muted;
+  min-width: 26px;
+  min-height: 26px;
+  border-radius: 6px;
+  transition: background-color 150ms ease, color 150ms ease;
+
+  &:hover {
+    background-color: $cal-inset;
+    color: $cal-blue;
+  }
+}
+
+// Cabecera de días de la semana.
+
+.cal-weekdays {
+  padding-bottom: 8px;
+  border-bottom: 1px solid $cal-border;
+}
+
+.cal-wd {
+  font-size: 15px;
+  color: $cal-muted;
+
+  &.weekend { color: $cal-blue; }
+}
+
+// Rejilla de días.
+
+.cal-day {
+  min-width: 36px;
+  min-height: 32px;
+  border-radius: 6px;
+  font-size: 16px;
+  color: $cal-fg;
+  background-color: transparent;
+  // Borde siempre presente pero invisible: las marcas de abajo sólo le
+  // cambian el color, así ningún día mueve la rejilla al encenderse.
+  border: 2px solid transparent;
+  transition: background-color 150ms ease, border-color 150ms ease;
+
+  // Días del mes anterior / siguiente: presentes pero apagados.
+  &.out { color: $cal-muted; }
+
+  // Sábado y domingo: color azul + bloque de fondo tenue.
+  &.weekend {
+    color: $cal-blue;
+    background-color: $cal-inset;
+  }
+
+  // Hoy: bloque lleno.
+  &.today {
+    background-color: $cal-blue;
+    color: $cal-card;
+  }
+
+  &:hover { background-color: $cal-sel; }
+
+  // Día con nota: bloque ámbar lleno. Va después de .weekend y .today para
+  // que la marca gane siempre.
+  &.has-note {
+    background-color: $cal-accent;
+    color: $cal-card;
+  }
+
+  // Hoy con nota: manda el ámbar, pero el borde azul lo sigue señalando.
+  &.today.has-note { border-color: $cal-blue; }
+
+  // Día abierto en el panel de notas: recuadro completo.
+  &.sel { border-color: $cal-fg; }
+}
+
+// ── Tarjeta de la nota del día ──────────────────────────────
+
+.cal-note {
+  padding: 10px 12px 12px 12px;
+}
+
+.note-date {
+  font-size: 14px;
+  color: $cal-muted;
+}
+
+.note-text {
+  font-size: 15px;
+  color: $cal-fg;
+
+  // En el aviso de borrado la nota es sólo contexto.
+  &.dim { color: $cal-muted; }
+}
+
+// Cada nota de la lista: hora a la izquierda, texto, y su botón.
+.note-row {
+  min-height: 26px;
+}
+
+// Columna de la hora. Ancho fijo aunque la nota no tenga: así los textos de
+// todas las notas del día quedan alineados.
+.note-time {
+  font-size: 14px;
+  color: $cal-blue;
+  min-width: 42px;
+
+  &.dim { color: $cal-muted; }
+}
+
+// ── Hora de la nota ─────────────────────────────────────────
+
+.note-clock {
+  font-size: 15px;
+  color: $cal-fg;
+
+  &.off { color: $cal-muted; }
+}
+
+.note-unit {
+  font-size: 13px;
+  color: $cal-muted;
+  min-width: 14px;
+}
+
+.note-scale {
+  min-height: 16px;
+
+  trough {
+    min-height: 7px;
+    border-radius: 4px;
+    background-color: $cal-inset;
+  }
+
+  highlight {
+    min-height: 7px;
+    border-radius: 4px;
+    background-color: $cal-blue;
+  }
+
+  // Sin bolita: la posición se lee en el tramo azul de la barra. El nodo
+  // conserva su tamaño para no perder zona de agarre al arrastrar.
+  slider {
+    min-width: 16px;
+    min-height: 16px;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.note-input {
+  font-size: 15px;
+  color: $cal-fg;
+  caret-color: $cal-fg;
+  background-color: $cal-inset;
+  border: 1px solid $cal-border;
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-height: 26px;
+
+  &:focus { border-color: $cal-blue; }
+}
+
+.note-btn {
+  font-size: 14px;
+  color: $cal-muted;
+  background-color: $cal-inset;
+  border-radius: 6px;
+  padding: 4px 10px;
+  min-height: 26px;
+  transition: background-color 150ms ease, color 150ms ease;
+
+  &:hover { color: $cal-fg; }
+
+  &.ok:hover     { background-color: $cal-blue;   color: $cal-card; }
+  &.danger       { color: $cal-danger; }
+  &.danger:hover { background-color: $cal-danger; color: $cal-card; }
+
+  // La ✕ de vaciar el campo: estrecha, y roja al pasar por encima para que
+  // no se confunda con la ✕ de la cabecera, que sólo cierra el panel.
+  &.clear {
+    padding: 4px 7px;
+    background-color: transparent;
+  }
+  &.clear:hover { color: $cal-danger; }
+
+  // ↺: devolver este día al color por defecto.
+  &.reset {
+    padding: 4px 7px;
+    background-color: transparent;
+  }
+
+  // «+ Añadir nota»: ancho completo, discreto hasta que lo señalas.
+  &.add {
+    background-color: transparent;
+    border: 1px dashed $cal-border;
+
+    &:hover {
+      background-color: $cal-inset;
+      border-color: $cal-blue;
+      color: $cal-blue;
+    }
+  }
+}
+
+// ── Colores de las notas ────────────────────────────────────
+
+.note-lbl {
+  font-size: 13px;
+  color: $cal-muted;
+}
+
+// Cuadradito con el color actual. El borde no cambia de grosor al pasar por
+// encima, sólo de color, para que no baile la fila.
+.swatch {
+  min-width: 34px;
+  min-height: 24px;
+  border-radius: 6px;
+  border: 2px solid $cal-border;
+  transition: border-color 150ms ease;
+
+  &:hover { border-color: $cal-fg; }
+}

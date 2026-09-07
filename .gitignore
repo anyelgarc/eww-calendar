@@ -1,0 +1,10 @@
+# Tus notas y tus preferencias de color:
+notes.json
+prefs.json
+
+# Mierda.
+__pycache__/
+*.pyc
+*.swp
+*~
+.tmp-*.json
